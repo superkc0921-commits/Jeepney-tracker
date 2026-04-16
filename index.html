@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Commuter - Apalit</title>
+    <title>2D Tracker - 3D Vehicles</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
@@ -11,8 +11,9 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 
     <style>
+        /* Keeping your requested UI style */
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #000; color: white; overflow: hidden; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: #000; color: white; overflow: hidden; }
         
         #map { height: 100vh; width: 100vw; position: absolute; top: 0; }
 
@@ -51,9 +52,11 @@
         .eta { font-size: 32px; font-weight: 800; color: #007aff; margin: 2px 0; letter-spacing: -1px; }
         .badge { display: inline-block; padding: 4px 10px; background: rgba(0, 122, 255, 0.15); color: #007aff; border-radius: 6px; font-size: 10px; font-weight: bold; margin-bottom: 6px; }
         
+        /* 3D-Look Vehicle Icons */
         .marker-icon {
-            width: 50px; height: 50px; background-size: contain; background-repeat: no-repeat;
-            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
+            width: 60px; height: 60px; background-size: contain; background-repeat: no-repeat;
+            filter: drop-shadow(0 8px 4px rgba(0,0,0,0.4)); /* Adds 3D depth shadow */
+            transition: transform 0.3s ease;
         }
     </style>
 </head>
@@ -70,20 +73,20 @@
             </div>
 
             <div id="driver-ui">
-                <input type="text" id="driverName" placeholder="Driver Name (e.g. Kuya Cardo)">
+                <input type="text" id="driverName" placeholder="Driver Name">
                 <select id="vehicle">
-                    <option value="tricycle">🛺 Tricycle</option>
+                    <option value="tricycle">🛺 Tricycle (3D View)</option>
                     <option value="jeep">🚍 Modern Jeep</option>
-                    <option value="bus">🚌 Bus</option>
+                    <option value="bus">🚌 Public Bus</option>
                 </select>
                 <button class="main-btn" onclick="startApp()">START DRIVING</button>
             </div>
 
             <div id="passenger-ui" style="display:none;">
-                <p style="font-size: 13px; color: #8e8e93; margin-bottom: 15px;">Tracking live vehicles in Apalit...</p>
+                <p style="font-size: 13px; color: #8e8e93; margin-bottom: 15px;">Locating 3D vehicles near Apalit...</p>
                 <button class="main-btn" onclick="startApp()">TRACK NEARBY</button>
             </div>
-            <button class="sos-btn" onclick="alert('SOS SENT!')">EMERGENCY SOS</button>
+            <button class="sos-btn" onclick="alert('SOS SENT TO AUTHORITIES')">EMERGENCY SOS</button>
         </div>
 
         <div id="info-panel">
@@ -97,7 +100,7 @@
 </div>
 
 <script>
-    // --- SETUP ---
+    // --- FIREBASE ---
     const firebaseConfig = {
         apiKey: "AIzaSyDAF957yq7BpNDOzQJpCqDkL-fhgBMywiY",
         databaseURL: "https://jeepney-tracker-33edd-default-rtdb.firebaseio.com",
@@ -107,15 +110,17 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // !!! REPLACE THIS WITH YOUR KEY !!!
+    // --- MAPBOX ---
+    // !!! MUST PASTE YOUR PK.XXX TOKEN HERE !!!
     mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
 
     const map = new mapboxgl.Map({
         container: 'map',
-        style: 'mapbox://styles/mapbox/navigation-night-v1', 
+        style: 'mapbox://styles/mapbox/dark-v11', // Clean 2D Dark Map
         center: [120.7570, 14.9455],
-        zoom: 16,
-        pitch: 65
+        zoom: 15,
+        pitch: 0, // 0 = 2D FLAT VIEW
+        bearing: 0
     });
 
     let role = 'driver';
@@ -123,6 +128,7 @@
     el.className = 'marker-icon';
     let marker = new mapboxgl.Marker(el);
 
+    // Using Isometric (3D perspective) icons for a 2D map
     const vehicleIcons = {
         tricycle: 'https://cdn-icons-png.flaticon.com/512/2898/2898516.png',
         jeep: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png',
@@ -160,26 +166,17 @@
 
     function updateMap(name, type, lat, lng, heading) {
         el.style.backgroundImage = `url(${vehicleIcons[type]})`;
+        
+        // Rotating the 3D-looking icon to match driver direction
+        el.style.transform = `rotate(${heading || 0}deg)`;
+        
         marker.setLngLat([lng, lat]).addTo(map);
-        map.easeTo({ center: [lng, lat], bearing: heading || 0, duration: 1000 });
+        map.easeTo({ center: [lng, lat], duration: 1000 });
         
         document.getElementById('display-name').innerText = name;
-        document.getElementById('display-type').innerText = type.toUpperCase();
-        document.getElementById('display-eta').innerText = "3 MIN"; // Example
+        document.getElementById('display-type').innerText = type.toUpperCase() + " DRIVER";
+        document.getElementById('display-eta').innerText = "4 MIN";
     }
-
-    map.on('load', () => {
-        map.addLayer({
-            'id': '3d-buildings',
-            'source': 'composite', 'source-layer': 'building',
-            'type': 'fill-extrusion',
-            'paint': {
-                'fill-extrusion-color': '#242f3e',
-                'fill-extrusion-height': ['get', 'height'],
-                'fill-extrusion-opacity': 0.6
-            }
-        });
-    });
 </script>
 </body>
 </html>
