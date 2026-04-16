@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Commuter Tracker + Tricycle</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Commuter - Apalit</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
@@ -11,55 +11,49 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 
     <style>
-        * { box-sizing: border-box; }
-        body { font-family: 'Inter', -apple-system, sans-serif; margin: 0; background: #0b0e14; color: white; overflow: hidden; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #000; color: white; overflow: hidden; }
         
         #map { height: 100vh; width: 100vw; position: absolute; top: 0; }
 
-        .overlay-ui {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 420px; z-index: 10;
+        .ui-container {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 92%; max-width: 400px; z-index: 10;
         }
         
-        .card { 
-            background: rgba(20, 25, 35, 0.9); backdrop-filter: blur(15px);
-            padding: 24px; border-radius: 28px; border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+        .glass-card { 
+            background: rgba(28, 28, 30, 0.85); backdrop-filter: saturate(180%) blur(20px);
+            padding: 20px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
         }
 
-        .role-selector { display: flex; gap: 8px; margin-bottom: 20px; background: #161b22; padding: 5px; border-radius: 14px; }
-        .role-btn { 
-            flex: 1; padding: 12px; border: none; border-radius: 10px; 
-            cursor: pointer; font-weight: 600; background: transparent; color: #777; transition: 0.2s;
-        }
-        .role-btn.active { background: #0ea5e9; color: white; }
+        .role-box { display: flex; gap: 6px; margin-bottom: 15px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 12px; }
+        .tab { flex: 1; padding: 10px; border: none; border-radius: 9px; cursor: pointer; font-weight: 600; background: transparent; color: #8e8e93; font-size: 13px; }
+        .tab.active { background: #007aff; color: white; }
 
         input, select { 
-            width: 100%; padding: 14px; border: 1px solid #2d333b; border-radius: 14px; 
-            background: #0d1117; color: white; margin-bottom: 12px; font-size: 15px;
+            width: 100%; padding: 14px; border: none; border-radius: 12px; 
+            background: rgba(255,255,255,0.05); color: white; margin-bottom: 10px; font-size: 16px;
         }
 
-        .btn-row { display: flex; gap: 10px; }
-        .action-btn { 
-            flex: 3; padding: 16px; border: none; border-radius: 16px; 
-            color: white; font-weight: 800; font-size: 15px; cursor: pointer;
-            background: linear-gradient(135deg, #0ea5e9, #2563eb);
+        .main-btn { 
+            width: 100%; padding: 16px; border: none; border-radius: 14px; 
+            color: white; font-weight: 700; font-size: 16px; cursor: pointer;
+            background: #007aff; margin-bottom: 8px;
         }
 
         .sos-btn {
-            flex: 1; background: #ef4444; border: none; border-radius: 16px;
-            color: white; cursor: pointer; display: flex; align-items: center; justify-content: center;
-            font-size: 18px; font-weight: bold;
+            width: 100%; padding: 12px; background: rgba(255, 59, 48, 0.2); border: 1px solid rgba(255, 59, 48, 0.5);
+            border-radius: 12px; color: #ff3b30; font-weight: 700; cursor: pointer; font-size: 13px;
         }
 
-        #info-display { display: none; }
-        .eta-text { font-size: 28px; font-weight: 900; color: #0ea5e9; margin: 4px 0; letter-spacing: -1px; }
-        .status-badge { display: inline-block; padding: 4px 12px; background: rgba(14, 165, 233, 0.15); color: #38bdf8; border-radius: 20px; font-size: 10px; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; }
+        #info-panel { display: none; }
+        .eta { font-size: 32px; font-weight: 800; color: #007aff; margin: 2px 0; letter-spacing: -1px; }
+        .badge { display: inline-block; padding: 4px 10px; background: rgba(0, 122, 255, 0.15); color: #007aff; border-radius: 6px; font-size: 10px; font-weight: bold; margin-bottom: 6px; }
         
-        /* Custom Vehicle Icon Styling */
-        .vehicle-marker {
+        .marker-icon {
             width: 50px; height: 50px; background-size: contain; background-repeat: no-repeat;
-            transition: transform 0.2s ease-out;
+            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
         }
     </style>
 </head>
@@ -67,50 +61,43 @@
 
 <div id="map"></div>
 
-<div class="overlay-ui">
-    <div class="card">
-        <div id="setup-ui">
-            <div class="role-selector">
-                <button class="role-btn active" onclick="setRole('driver')">DRIVER</button>
-                <button class="role-btn" onclick="setRole('passenger')">PASSENGER</button>
+<div class="ui-container">
+    <div class="glass-card">
+        <div id="setup-panel">
+            <div class="role-box">
+                <button class="tab active" onclick="setRole('driver')">DRIVER</button>
+                <button class="tab" onclick="setRole('passenger')">PASSENGER</button>
             </div>
 
-            <div id="driver-form">
-                <input type="text" id="driverName" placeholder="Driver Name">
-                <select id="vehicleType">
+            <div id="driver-ui">
+                <input type="text" id="driverName" placeholder="Driver Name (e.g. Kuya Cardo)">
+                <select id="vehicle">
                     <option value="tricycle">🛺 Tricycle</option>
-                    <option value="jeep">🚍 Modern Jeepney</option>
-                    <option value="bus">🚌 Public Bus</option>
+                    <option value="jeep">🚍 Modern Jeep</option>
+                    <option value="bus">🚌 Bus</option>
                 </select>
-                <div class="btn-row">
-                    <button class="action-btn" onclick="startTracking()">START ROUTE</button>
-                    <button class="sos-btn" onclick="sendSOS()">SOS</button>
-                </div>
+                <button class="main-btn" onclick="startApp()">START DRIVING</button>
             </div>
 
-            <div id="passenger-form" style="display:none;">
-                <p style="font-size: 14px; color: #888; margin-bottom: 15px;">Viewing nearby transport in Apalit...</p>
-                <div class="btn-row">
-                    <button class="action-btn" onclick="startTracking()">FIND VEHICLES</button>
-                    <button class="sos-btn" onclick="sendSOS()">SOS</button>
-                </div>
+            <div id="passenger-ui" style="display:none;">
+                <p style="font-size: 13px; color: #8e8e93; margin-bottom: 15px;">Tracking live vehicles in Apalit...</p>
+                <button class="main-btn" onclick="startApp()">TRACK NEARBY</button>
             </div>
+            <button class="sos-btn" onclick="alert('SOS SENT!')">EMERGENCY SOS</button>
         </div>
 
-        <div id="info-display">
-            <div class="status-badge" id="live-tag">LIVE NAVIGATION</div>
-            <div id="view-name" style="font-weight: 700; font-size: 20px;">Searching...</div>
-            <div id="view-type" style="font-size: 12px; color: #888; margin-top: 2px;">VEHICLE TYPE</div>
-            <div class="eta-text" id="view-eta">-- MIN</div>
-            <div class="btn-row" style="margin-top: 15px;">
-                <button class="sos-btn" style="flex:1" onclick="sendSOS()">EMERGENCY SOS</button>
-            </div>
+        <div id="info-panel">
+            <div class="badge">LIVE TRACKING</div>
+            <div id="display-name" style="font-weight: 700; font-size: 18px;">---</div>
+            <div id="display-type" style="font-size: 11px; color: #8e8e93;">VEHICLE</div>
+            <div class="eta" id="display-eta">-- MIN</div>
+            <button class="sos-btn" style="margin-top:10px;" onclick="alert('SOS SENT!')">REPORT ACCIDENT / SOS</button>
         </div>
     </div>
 </div>
 
 <script>
-    // 1. FIREBASE CONFIG
+    // --- SETUP ---
     const firebaseConfig = {
         apiKey: "AIzaSyDAF957yq7BpNDOzQJpCqDkL-fhgBMywiY",
         databaseURL: "https://jeepney-tracker-33edd-default-rtdb.firebaseio.com",
@@ -120,94 +107,79 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // 2. IMPORTANT: GET YOUR TOKEN FROM MAPBOX.COM
-    // If you don't paste your 'pk.xxx' key here, the map will be black.
+    // !!! REPLACE THIS WITH YOUR KEY !!!
     mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
 
     const map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/navigation-night-v1', 
-        center: [120.7570, 14.9455], // Apalit, Philippines
-        zoom: 17,
-        pitch: 70,     
-        bearing: 0
+        center: [120.7570, 14.9455],
+        zoom: 16,
+        pitch: 65
     });
 
-    let currentRole = 'driver';
-    let markerElement = document.createElement('div');
-    markerElement.className = 'vehicle-marker';
-    let marker = new mapboxgl.Marker(markerElement);
+    let role = 'driver';
+    let el = document.createElement('div');
+    el.className = 'marker-icon';
+    let marker = new mapboxgl.Marker(el);
 
-    // 3. VEHICLE ICON MAPPING
-    const icons = {
+    const vehicleIcons = {
         tricycle: 'https://cdn-icons-png.flaticon.com/512/2898/2898516.png',
         jeep: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png',
         bus: 'https://cdn-icons-png.flaticon.com/512/1039/1039845.png'
     };
 
-    function setRole(role) {
-        currentRole = role;
-        document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+    function setRole(r) {
+        role = r;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         event.target.classList.add('active');
-        document.getElementById('driver-form').style.display = role === 'driver' ? 'block' : 'none';
-        document.getElementById('passenger-form').style.display = role === 'passenger' ? 'block' : 'none';
+        document.getElementById('driver-ui').style.display = r === 'driver' ? 'block' : 'none';
+        document.getElementById('passenger-ui').style.display = r === 'passenger' ? 'block' : 'none';
     }
 
-    function sendSOS() {
-        alert("🚨 EMERGENCY SOS SENT! Your location is being shared with local authorities.");
-        // In a real app, you would push this to a 'sos' node in Firebase
-    }
+    function startApp() {
+        document.getElementById('setup-panel').style.display = 'none';
+        document.getElementById('info-panel').style.display = 'block';
 
-    function startTracking() {
-        document.getElementById('setup-ui').style.display = 'none';
-        document.getElementById('info-display').style.display = 'block';
-
-        if (currentRole === 'driver') {
-            const name = document.getElementById('driverName').value || "Public Transport";
-            const type = document.getElementById('vehicleType').value;
+        if (role === 'driver') {
+            const name = document.getElementById('driverName').value || "Express";
+            const vType = document.getElementById('vehicle').value;
             
             navigator.geolocation.watchPosition((pos) => {
                 const { latitude, longitude, heading } = pos.coords;
-                db.ref('shared_location/v1').set({ name, type, lat: latitude, lng: longitude, heading: heading || 0 });
-                updateUI(name, type, latitude, longitude, heading);
+                db.ref('shared_location/v1').set({ name, type: vType, lat: latitude, lng: longitude, heading: heading || 0 });
+                updateMap(name, vType, latitude, longitude, heading);
             }, null, { enableHighAccuracy: true });
         } else {
             db.ref('shared_location/v1').on('value', (snap) => {
                 const data = snap.val();
-                if (data) updateUI(data.name, data.type, data.lat, data.lng, data.heading);
+                if (data) updateMap(data.name, data.type, data.lat, data.lng, data.heading);
             });
         }
     }
 
-    function updateUI(name, type, lat, lng, heading) {
-        markerElement.style.backgroundImage = `url(${icons[type]})`;
+    function updateMap(name, type, lat, lng, heading) {
+        el.style.backgroundImage = `url(${vehicleIcons[type]})`;
         marker.setLngLat([lng, lat]).addTo(map);
+        map.easeTo({ center: [lng, lat], bearing: heading || 0, duration: 1000 });
         
-        map.easeTo({
-            center: [lng, lat],
-            bearing: heading || 0,
-            duration: 1000
-        });
-
-        document.getElementById('view-name').innerText = name;
-        document.getElementById('view-type').innerText = type.toUpperCase() + " DRIVER";
-        document.getElementById('view-eta').innerText = Math.floor(Math.random() * 10 + 1) + " MIN";
+        document.getElementById('display-name').innerText = name;
+        document.getElementById('display-type').innerText = type.toUpperCase();
+        document.getElementById('display-eta').innerText = "3 MIN"; // Example
     }
 
-    // Add 3D Buildings
     map.on('load', () => {
         map.addLayer({
             'id': '3d-buildings',
             'source': 'composite', 'source-layer': 'building',
             'type': 'fill-extrusion',
             'paint': {
-                'fill-extrusion-color': '#1f2937',
+                'fill-extrusion-color': '#242f3e',
                 'fill-extrusion-height': ['get', 'height'],
-                'fill-extrusion-opacity': 0.8
+                'fill-extrusion-opacity': 0.6
             }
         });
     });
 </script>
 </body>
 </html>
-
