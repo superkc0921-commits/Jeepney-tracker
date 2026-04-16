@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeep & Bus Tracker - Commuter Edition</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; }
+        
+        #map { height: 50vh; width: 100%; background: #ddd; }
+
+        .app-container { padding: 15px; max-width: 500px; margin: auto; }
+        
+        .card { 
+            background: white; padding: 20px; border-radius: 15px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-top: -30px; 
+            position: relative; z-index: 1000;
+        }
+
+        .role-selector { display: flex; gap: 10px; margin-bottom: 20px; }
+        .role-btn { 
+            flex: 1; padding: 12px; border: none; border-radius: 8px; 
+            cursor: pointer; font-weight: bold; background: #e0e0e0; 
+        }
+        .role-btn.active { background: #2c3e50; color: white; }
+
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 12px; margin-bottom: 5px; color: #666; font-weight: bold; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; }
+
+        .action-btn { 
+            width: 100%; padding: 15px; border: none; border-radius: 8px; 
+            color: white; font-weight: bold; font-size: 16px; cursor: pointer;
+        }
+        .btn-driver { background: #e67e22; }
+        .btn-passenger { background: #27ae60; }
+
+        #info-display { display: none; text-align: center; }
+        .eta-highlight { color: #d35400; font-size: 20px; font-weight: bold; margin: 10px 0; }
+        .status-pill { display: inline-block; padding: 5px 15px; background: #e8f5e9; color: #2e7d32; border-radius: 20px; font-size: 12px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="app-container">
+    <div class="card">
+        <div id="setup-ui">
+            <div class="role-selector">
+                <button class="role-btn active" onclick="setRole('driver')">DRIVER</button>
+                <button class="role-btn" onclick="setRole('passenger')">PASSENGER</button>
+            </div>
+
+            <div id="driver-form">
+                <div class="form-group">
+                    <label>DRIVER NAME</label>
+                    <input type="text" id="driverName" placeholder="Full Name">
+                </div>
+                <div class="form-group">
+                    <label>VEHICLE</label>
+                    <select id="vehicleType">
+                        <option value="Jeepney">Jeepney</option>
+                        <option value="Modern Jeep">Modern Jeep</option>
+                        <option value="Bus">Bus</option>
+                    </select>
+                </div>
+                <button class="action-btn btn-driver" onclick="startTracking()">START DRIVING</button>
+            </div>
+
+            <div id="passenger-form" style="display:none;">
+                <p style="font-size: 14px; color: #666;">View available public transport near you in real-time.</p>
+                <button class="action-btn btn-passenger" onclick="startTracking()">TRACK VEHICLES</button>
+            </div>
+        </div>
+
+        <div id="info-display">
+            <div class="status-pill" id="live-tag">Searching for signal...</div>
+            <h3 id="view-name" style="margin:0">--</h3>
+            <p id="view-type" style="color:#666; margin:5px 0;">--</p>
+            <div class="eta-highlight" id="view-eta">ETA: --</div>
+            <small id="view-coords">Waiting for GPS coordinates...</small>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- FIREBASE CONFIG ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyDAF957yq7BpNDOzQJpCqDkL-fhgBMywiY",
+        databaseURL: "https://jeepney-tracker-33edd-default-rtdb.firebaseio.com",
+        projectId: "jeepney-tracker-33edd",
+        appId: "1:520991616016:web:475faf5308dc78ca5af53b" 
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // --- MAP SETUP ---
+    var map = L.map('map').setView([14.9455, 120.7570], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    var vehicleIcon = L.icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png',
+        iconSize: [45, 45],
+        iconAnchor: [22, 22]
+    });
+    var marker = L.marker([14.9455, 120.7570], {icon: vehicleIcon}).addTo(map);
+
+    let currentRole = 'driver';
+
+    function setRole(role) {
+        currentRole = role;
+        document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('driver-form').style.display = role === 'driver' ? 'block' : 'none';
+        document.getElementById('passenger-form').style.display = role === 'passenger' ? 'block' : 'none';
+    }
+
+    function calculateETA(lat1, lon1) {
+        // Sample Destination: Apalit Municipal Hall
+        const dest = {lat: 14.9455, lng: 120.7570};
+        const R = 6371; 
+        const dLat = (dest.lat - lat1) * Math.PI / 180;
+        const dLon = (dest.lng - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(dest.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c; 
+        const time = Math.round((distance / 25) * 60); // 25km/h traffic speed
+        return time > 0 ? time : 1;
+    }
+
+    function startTracking() {
+        document.getElementById('setup-ui').style.display = 'none';
+        document.getElementById('info-display').style.display = 'block';
+
+        if (currentRole === 'driver') {
+            const name = document.getElementById('driverName').value || "Unknown Driver";
+            const type = document.getElementById('vehicleType').value;
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition((pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    db.ref('shared_location/v1').set({
+                        name: name,
+                        type: type,
+                        lat: latitude,
+                        lng: longitude,
+                        time: Date.now()
+                    });
+                    updateDisplay(name, type, latitude, longitude);
+                }, null, { enableHighAccuracy: true });
+            }
+        } else {
+            // Passenger Mode: Listen to Driver
+            document.getElementById('live-tag').innerText = "TRACKING NEAREST VEHICLE";
+            db.ref('shared_location/v1').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    updateDisplay(data.name, data.type, data.lat, data.lng);
+                }
+            });
+        }
+    }
+
+    function updateDisplay(name, type, lat, lng) {
+        marker.setLatLng([lat, lng]);
+        map.panTo([lat, lng]);
+        
+        document.getElementById('view-name').innerText = "Driver: " + name;
+        document.getElementById('view-type').innerText = "Vehicle: " + type;
+        document.getElementById('view-coords').innerText = `GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        
+        const eta = calculateETA(lat, lng);
+        document.getElementById('view-eta').innerText = `ETA to Apalit: ~${eta} mins`;
+        document.getElementById('live-tag').innerText = "LIVE • UPDATING";
+    }
+
+    // Fix for map display bugs
+    window.dispatchEvent(new Event('resize'));
+    setTimeout(() => { map.invalidateSize(); }, 500);
+</script>
+
+</body>
+</html>
+
