@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CL Live - Map Fix</title>
+    <title>CL Live - Fixed Sync</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
@@ -12,49 +12,37 @@
 
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: -apple-system, sans-serif; margin: 0; background: #f4f7f6; overflow: hidden; height: 100vh; }
-        
-        /* Bright Map for Visibility */
-        #map { height: 60vh; width: 100%; background: #e0e0e0; z-index: 1; border-bottom: 2px solid #ddd; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: #f8f9fa; overflow: hidden; height: 100vh; }
+        #map { height: 60vh; width: 100%; background: #e9ecef; z-index: 1; }
 
         .app-container { padding: 15px; max-width: 500px; margin: auto; position: relative; z-index: 100; }
-        .card { 
-            background: white; padding: 22px; border-radius: 28px; 
-            box-shadow: 0 12px 40px rgba(0,0,0,0.12); margin-top: -60px; position: relative;
-        }
+        .card { background: white; padding: 22px; border-radius: 28px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); margin-top: -60px; }
 
-        .role-selector { display: flex; gap: 8px; margin-bottom: 15px; background: #eee; padding: 5px; border-radius: 15px; }
-        .role-btn { flex: 1; padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: 700; background: transparent; color: #777; transition: 0.2s; }
-        .role-btn.active { background: #007aff; color: white; box-shadow: 0 4px 10px rgba(0,122,255,0.2); }
+        /* ICON STYLES */
+        .bubble-container { width: 70px; height: 95px; display: flex; flex-direction: column; align-items: center; position: relative; }
+        .map-speed-tag { background: #000; color: #fff; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 5px; margin-bottom: 3px; }
 
-        input, select { width: 100%; padding: 14px; border: 1px solid #e0e0e0; border-radius: 12px; background: #fafafa; font-size: 15px; margin-bottom: 12px; color: #333; }
-
-        .action-btn { 
-            width: 100%; padding: 18px; border: none; border-radius: 15px; 
-            color: white; font-weight: 800; font-size: 16px; cursor: pointer;
-            background: linear-gradient(135deg, #007aff, #005bb5);
-        }
-
-        /* Fixed Bubble Markers */
-        .bubble-container { width: 60px; height: 70px; display: flex; flex-direction: column; align-items: center; }
-        .bubble-main { 
-            width: 50px; height: 50px; border-radius: 50%; border: 3px solid #fff; 
-            background: white; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            display: flex; align-items: center; justify-content: center;
-        }
+        .bubble-main { width: 50px; height: 50px; border: 4px solid #fff; background: white; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         .bubble-arrow { width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 10px solid #fff; margin-top: -2px; }
         
-        .driver-bubble .bubble-main { border-color: #28a745; } 
+        /* DRIVER = GREEN SQUARE */
+        .driver-bubble .bubble-main { border-color: #28a745; border-radius: 8px; } 
         .driver-bubble .bubble-arrow { border-top-color: #28a745; }
-        .passenger-bubble .bubble-main { border-color: #007aff; } 
+        
+        /* PASSENGER = BLUE CIRCLE */
+        .passenger-bubble .bubble-main { border-color: #007aff; border-radius: 50%; } 
         .passenger-bubble .bubble-arrow { border-top-color: #007aff; }
-        .bubble-img { width: 80%; height: 80%; object-fit: contain; }
 
+        .bubble-img { width: 70%; height: 70%; object-fit: contain; }
+        .leaflet-marker-icon { transition: all 0.9s linear; }
+
+        /* UI Elements */
+        .role-selector { display: flex; gap: 8px; margin-bottom: 15px; background: #eee; padding: 5px; border-radius: 15px; }
+        .role-btn { flex: 1; padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: 700; color: #777; }
+        .role-btn.active { background: #007aff; color: white; }
+        input, select { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 12px; margin-bottom: 12px; }
+        .action-btn { width: 100%; padding: 18px; border: none; border-radius: 15px; color: white; font-weight: 800; background: linear-gradient(135deg, #007aff, #005bb5); cursor: pointer; }
         #info-display { display: none; text-align: center; }
-        .stats-row { display: flex; justify-content: space-between; margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
-        .stat-value { font-size: 28px; font-weight: 900; color: #007aff; display: block; }
-        .stat-label { font-size: 10px; color: #999; text-transform: uppercase; font-weight: bold; }
-        .ai-tag { font-size: 9px; background: #e1f0ff; color: #007aff; padding: 2px 5px; border-radius: 4px; vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -69,42 +57,28 @@
                 <button id="btn-passenger" class="role-btn" onclick="setRole('passenger')">PASSENGER</button>
             </div>
             <div id="driver-form">
-                <input type="text" id="userName" placeholder="Enter Driver Name">
+                <input type="text" id="userName" placeholder="Driver Name">
                 <select id="destination">
-                    <option value="" disabled selected>Choose Destination</option>
-                    <option value="Apalit">Apalit Public Market</option>
-                    <option value="SanFernando">SM City Pampanga</option>
-                    <option value="Angeles">Marquee Mall</option>
-                    <option value="Malolos">Malolos Cathedral</option>
+                    <option value="" disabled selected>Destination</option>
+                    <option value="Apalit">Apalit Market</option>
+                    <option value="SanFernando">SM Pampanga</option>
                 </select>
                 <select id="vehicle">
-                    <option value="jeep">🚍 Modern Jeepney</option>
+                    <option value="jeep">🚍 Jeepney</option>
                     <option value="bus">🚌 Provincial Bus</option>
                 </select>
-                <button class="action-btn" onclick="startSharing()">START LIVE FEED</button>
+                <button class="action-btn" onclick="startSharing()">GO LIVE</button>
             </div>
             <div id="passenger-form" style="display:none;">
-                <input type="text" id="passName" placeholder="Enter Passenger Name">
-                <button class="action-btn" onclick="startSharing()">FIND NEARBY VEHICLES</button>
+                <input type="text" id="passName" placeholder="Passenger Name">
+                <button class="action-btn" onclick="startSharing()">FIND RIDES</button>
             </div>
         </div>
 
         <div id="info-display">
-            <h3 id="display-name" style="margin:0; font-size: 18px; color: #333;">---</h3>
-            <p id="dest-display" style="font-size: 11px; color: #28a745; font-weight: bold; margin: 5px 0;">READY</p>
-            
-            <div class="stats-row">
-                <div style="flex:1">
-                    <span id="display-speed" class="stat-value">0</span>
-                    <span class="stat-label">KM/H SPEED</span>
-                </div>
-                <div style="flex:1">
-                    <span id="display-eta" class="stat-value">--</span>
-                    <span class="stat-label">MINS ETA <span class="ai-tag">AI</span></span>
-                </div>
-            </div>
-            
-            <button class="action-btn" style="background:#f2f2f7; color:#444; font-size:12px; padding:10px; margin-top:20px;" onclick="stopSharing()">STOP & RESET</button>
+            <h3 id="display-name">---</h3>
+            <p>Tracking Live Speed on Map...</p>
+            <button class="action-btn" style="background:#f8f9fa; color:#444; border:1px solid #ddd;" onclick="stopSharing()">DISCONNECT</button>
         </div>
     </div>
 </div>
@@ -119,14 +93,11 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const destinations = { "Apalit": [14.9455, 120.7570], "SanFernando": [15.0514, 120.6974], "Angeles": [15.1450, 120.6156], "Malolos": [14.8510, 120.8161] };
     const icons = { jeep: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png', bus: 'https://cdn-icons-png.flaticon.com/512/1039/1039845.png', user: 'https://cdn-icons-png.flaticon.com/512/1144/1144760.png' };
-
-    // Standard Map Setup
     var map = L.map('map', { zoomControl: false }).setView([14.9455, 120.7570], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    let role = 'driver', markers = {}, watchId = null, myName = "", lastPos = null;
+    let role = 'driver', markers = {}, watchId = null, myName = "";
 
     function setRole(r) {
         role = r;
@@ -136,48 +107,36 @@
         document.getElementById('passenger-form').style.display = r === 'passenger' ? 'block' : 'none';
     }
 
-    // Advanced Speed Calculation for Mobile Hardware
-    function getLiveSpeed(newLat, newLng, hardwareSpeed) {
-        if (hardwareSpeed && hardwareSpeed > 0) return Math.round(hardwareSpeed * 3.6);
-        if (!lastPos) { lastPos = { lat: newLat, lng: newLng, time: Date.now() }; return 0; }
-        
-        const dist = map.distance([lastPos.lat, lastPos.lng], [newLat, newLng]);
-        const timeDiff = (Date.now() - lastPos.time) / 1000;
-        
-        if (timeDiff < 1 || dist < 2) return 0; // Filter jitter
-        
-        const calculatedKmh = Math.round((dist / timeDiff) * 3.6);
-        lastPos = { lat: newLat, lng: newLng, time: Date.now() };
-        return Math.min(calculatedKmh, 100); 
-    }
-
     function startSharing() {
         const input = role === 'driver' ? 'userName' : 'passName';
         myName = document.getElementById(input).value || "User_" + Math.floor(Math.random()*99);
-        
         document.getElementById('setup-ui').style.display = 'none';
         document.getElementById('info-display').style.display = 'block';
-        
-        // Final map render fix
         setTimeout(() => map.invalidateSize(), 300);
 
         watchId = navigator.geolocation.watchPosition((pos) => {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
-            const speed = getLiveSpeed(lat, lng, pos.coords.speed);
-            const destKey = document.getElementById('destination').value;
-
+            const speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
             db.ref('cl_live/' + myName).set({
-                name: myName, role, lat, lng, speed, 
-                vehicle: role === 'driver' ? document.getElementById('vehicle').value : 'user',
-                dest: (role === 'driver' && destKey) ? destKey : null
+                name: myName, role, lat: pos.coords.latitude, lng: pos.coords.longitude, 
+                speed, vehicle: role === 'driver' ? document.getElementById('vehicle').value : 'user',
+                lastSeen: Date.now() // <--- ANTI-GHOST TIMESTAMP
             });
-        }, (err) => alert("Please Enable GPS Location"), { enableHighAccuracy: true, maximumAge: 0 });
+        }, null, { enableHighAccuracy: true });
 
         db.ref('cl_live').on('value', (snap) => {
             const data = snap.val();
-            for (let id in markers) { if (!data || !data[id]) { map.removeLayer(markers[id]); delete markers[id]; } }
-            for (let id in data) updateMarker(data[id]);
+            const now = Date.now();
+            
+            // CLEANING LOGIC: Remove users inactive for > 15 seconds
+            for (let id in markers) {
+                if (!data || !data[id] || (now - data[id].lastSeen > 15000)) {
+                    map.removeLayer(markers[id]);
+                    delete markers[id];
+                }
+            }
+            if (data) Object.values(data).forEach(u => {
+                if (now - u.lastSeen < 15000) updateMarker(u);
+            });
         });
     }
 
@@ -185,42 +144,25 @@
         const isDriver = u.role === 'driver';
         const bubbleClass = isDriver ? 'driver-bubble' : 'passenger-bubble';
         const iconImg = icons[u.vehicle] || icons.user;
-        const html = `<div class="bubble-container ${bubbleClass}"><div class="bubble-main"><img src="${iconImg}" class="bubble-img"></div><div class="bubble-arrow"></div></div>`;
+        const html = `<div class="bubble-container ${bubbleClass}"><div class="map-speed-tag">${u.speed} km/h</div><div class="bubble-main"><img src="${iconImg}" class="bubble-img"></div><div class="bubble-arrow"></div></div>`;
 
         if (!markers[u.name]) {
-            markers[u.name] = L.marker([u.lat, u.lng], { icon: L.divIcon({ className: '', html, iconSize: [60, 70], iconAnchor: [30, 70] }) }).addTo(map);
+            markers[u.name] = L.marker([u.lat, u.lng], { icon: L.divIcon({ className: '', html, iconSize: [70, 95], iconAnchor: [35, 95] }) }).addTo(map);
         } else {
             markers[u.name].setLatLng([u.lat, u.lng]);
+            markers[u.name].setIcon(L.divIcon({ className: '', html, iconSize: [70, 95], iconAnchor: [35, 95] }));
         }
-
-        if (u.name === myName) {
-            map.panTo([u.lat, u.lng]);
-            document.getElementById('display-name').innerText = u.name;
-            document.getElementById('display-speed').innerText = u.speed;
-            
-            if (u.dest && destinations[u.dest]) {
-                const distanceKm = map.distance([u.lat, u.lng], destinations[u.dest]) / 1000;
-                // AI ETA Logic: 25km/h for city, 45km/h for highway average
-                const aiSpeed = distanceKm < 3 ? 25 : 45;
-                document.getElementById('display-eta').innerText = Math.max(1, Math.round((distanceKm / aiSpeed) * 60));
-                document.getElementById('dest-display').innerText = "DESTINATION: " + u.dest.toUpperCase();
-            } else {
-                document.getElementById('display-eta').innerText = "--";
-                document.getElementById('dest-display').innerText = isDriver ? "NO DESTINATION SET" : "LOOKING FOR RIDE";
-            }
-        }
+        if (u.name === myName) { map.panTo([u.lat, u.lng]); document.getElementById('display-name').innerText = u.name; }
     }
 
     function stopSharing() {
         if (watchId) navigator.geolocation.clearWatch(watchId);
         if (myName) db.ref('cl_live/' + myName).remove();
         db.ref('cl_live').off();
-        for (let id in markers) { map.removeLayer(markers[id]); }
+        for (let id in markers) map.removeLayer(markers[id]);
         markers = {};
         document.getElementById('setup-ui').style.display = 'block';
         document.getElementById('info-display').style.display = 'none';
-        lastPos = null;
-        map.invalidateSize();
     }
 </script>
 </body>
