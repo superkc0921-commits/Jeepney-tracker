@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CL Live - Fixed Sync</title>
+    <title>CL Live - Fixed Disconnect</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
@@ -13,36 +13,33 @@
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: -apple-system, sans-serif; margin: 0; background: #f8f9fa; overflow: hidden; height: 100vh; }
-        #map { height: 60vh; width: 100%; background: #e9ecef; z-index: 1; }
+        #map { height: 60vh; width: 100%; background: #ddd; z-index: 1; }
 
         .app-container { padding: 15px; max-width: 500px; margin: auto; position: relative; z-index: 100; }
         .card { background: white; padding: 22px; border-radius: 28px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); margin-top: -60px; }
 
-        /* ICON STYLES */
-        .bubble-container { width: 70px; height: 95px; display: flex; flex-direction: column; align-items: center; position: relative; }
-        .map-speed-tag { background: #000; color: #fff; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 5px; margin-bottom: 3px; }
+        /* ICONS: Square for Driver, Circle for Passenger */
+        .bubble-container { width: 70px; height: 95px; display: flex; flex-direction: column; align-items: center; }
+        .map-speed-tag { background: #000; color: #fff; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 5px; margin-bottom: 3px; border: 1px solid #444; }
 
         .bubble-main { width: 50px; height: 50px; border: 4px solid #fff; background: white; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         .bubble-arrow { width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 10px solid #fff; margin-top: -2px; }
         
-        /* DRIVER = GREEN SQUARE */
-        .driver-bubble .bubble-main { border-color: #28a745; border-radius: 8px; } 
+        .driver-bubble .bubble-main { border-color: #28a745; border-radius: 10px; } 
         .driver-bubble .bubble-arrow { border-top-color: #28a745; }
-        
-        /* PASSENGER = BLUE CIRCLE */
         .passenger-bubble .bubble-main { border-color: #007aff; border-radius: 50%; } 
         .passenger-bubble .bubble-arrow { border-top-color: #007aff; }
 
         .bubble-img { width: 70%; height: 70%; object-fit: contain; }
-        .leaflet-marker-icon { transition: all 0.9s linear; }
+        .leaflet-marker-icon { transition: all 0.5s linear; }
 
-        /* UI Elements */
-        .role-selector { display: flex; gap: 8px; margin-bottom: 15px; background: #eee; padding: 5px; border-radius: 15px; }
-        .role-btn { flex: 1; padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: 700; color: #777; }
-        .role-btn.active { background: #007aff; color: white; }
-        input, select { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 12px; margin-bottom: 12px; }
+        .stats-row { display: flex; justify-content: space-between; margin: 15px 0; padding-top: 15px; border-top: 1px solid #eee; }
+        .stat-box { text-align: center; flex: 1; }
+        .stat-val { font-size: 24px; font-weight: 900; color: #007aff; display: block; }
+        .stat-lab { font-size: 10px; color: #999; font-weight: bold; }
+        
         .action-btn { width: 100%; padding: 18px; border: none; border-radius: 15px; color: white; font-weight: 800; background: linear-gradient(135deg, #007aff, #005bb5); cursor: pointer; }
-        #info-display { display: none; text-align: center; }
+        .disconnect-btn { background: #f1f3f5; color: #ff3b30; margin-top: 10px; border: 1px solid #ddd; }
     </style>
 </head>
 <body>
@@ -52,33 +49,28 @@
 <div class="app-container">
     <div class="card">
         <div id="setup-ui">
-            <div class="role-selector">
-                <button id="btn-driver" class="role-btn active" onclick="setRole('driver')">DRIVER</button>
-                <button id="btn-passenger" class="role-btn" onclick="setRole('passenger')">PASSENGER</button>
-            </div>
-            <div id="driver-form">
-                <input type="text" id="userName" placeholder="Driver Name">
-                <select id="destination">
+            <input type="text" id="uName" placeholder="Enter Name">
+            <select id="uRole" onchange="toggleRoleUI()" style="width:100%; padding:14px; margin-bottom:12px; border-radius:12px; border:1px solid #ddd;">
+                <option value="driver">I am a Driver</option>
+                <option value="passenger">I am a Passenger</option>
+            </select>
+            <div id="driver-extras">
+                <select id="uDest" style="width:100%; padding:14px; margin-bottom:12px; border-radius:12px; border:1px solid #ddd;">
                     <option value="" disabled selected>Destination</option>
                     <option value="Apalit">Apalit Market</option>
                     <option value="SanFernando">SM Pampanga</option>
                 </select>
-                <select id="vehicle">
-                    <option value="jeep">🚍 Jeepney</option>
-                    <option value="bus">🚌 Provincial Bus</option>
-                </select>
-                <button class="action-btn" onclick="startSharing()">GO LIVE</button>
             </div>
-            <div id="passenger-form" style="display:none;">
-                <input type="text" id="passName" placeholder="Passenger Name">
-                <button class="action-btn" onclick="startSharing()">FIND RIDES</button>
-            </div>
+            <button class="action-btn" onclick="goLive()">START TRACKING</button>
         </div>
 
-        <div id="info-display">
-            <h3 id="display-name">---</h3>
-            <p>Tracking Live Speed on Map...</p>
-            <button class="action-btn" style="background:#f8f9fa; color:#444; border:1px solid #ddd;" onclick="stopSharing()">DISCONNECT</button>
+        <div id="info-display" style="display:none;">
+            <h3 id="show-name" style="margin:0; text-align:center;">---</h3>
+            <div class="stats-row">
+                <div class="stat-box"><span id="live-speed" class="stat-val">0</span><span class="stat-lab">KM/H</span></div>
+                <div class="stat-box"><span id="live-eta" class="stat-val">--</span><span class="stat-lab">MINS ETA (AI)</span></div>
+            </div>
+            <button class="action-btn disconnect-btn" onclick="stopSharing()">DISCONNECT</button>
         </div>
     </div>
 </div>
@@ -93,76 +85,118 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const icons = { jeep: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png', bus: 'https://cdn-icons-png.flaticon.com/512/1039/1039845.png', user: 'https://cdn-icons-png.flaticon.com/512/1144/1144760.png' };
+    const destCoords = { "Apalit": [14.9455, 120.7570], "SanFernando": [15.0514, 120.6974] };
+    const imgMap = { jeep: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png', user: 'https://cdn-icons-png.flaticon.com/512/1144/1144760.png' };
+
     var map = L.map('map', { zoomControl: false }).setView([14.9455, 120.7570], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    let role = 'driver', markers = {}, watchId = null, myName = "";
+    let markers = {}, watchId = null, myName = "", lastLoc = null;
 
-    function setRole(r) {
-        role = r;
-        document.getElementById('btn-driver').classList.toggle('active', r === 'driver');
-        document.getElementById('btn-passenger').classList.toggle('active', r === 'passenger');
-        document.getElementById('driver-form').style.display = r === 'driver' ? 'block' : 'none';
-        document.getElementById('passenger-form').style.display = r === 'passenger' ? 'block' : 'none';
+    function toggleRoleUI() {
+        document.getElementById('driver-extras').style.display = document.getElementById('uRole').value === 'driver' ? 'block' : 'none';
     }
 
-    function startSharing() {
-        const input = role === 'driver' ? 'userName' : 'passName';
-        myName = document.getElementById(input).value || "User_" + Math.floor(Math.random()*99);
+    function goLive() {
+        myName = document.getElementById('uName').value || "User_" + Math.floor(Math.random()*99);
+        const role = document.getElementById('uRole').value;
+        const dest = document.getElementById('uDest').value;
+
         document.getElementById('setup-ui').style.display = 'none';
         document.getElementById('info-display').style.display = 'block';
-        setTimeout(() => map.invalidateSize(), 300);
-
+        document.getElementById('show-name').innerText = myName.toUpperCase();
+        
         watchId = navigator.geolocation.watchPosition((pos) => {
-            const speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
+            let speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
+            
+            // Speedometer AI Fallback
+            if (speed === 0 && lastLoc) {
+                let d = map.distance([lastLoc.lat, lastLoc.lng], [pos.coords.latitude, pos.coords.longitude]);
+                let t = (Date.now() - lastLoc.time) / 1000;
+                if (t > 0 && d > 1.5) speed = Math.round((d/t) * 3.6);
+            }
+            lastLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, time: Date.now() };
+
             db.ref('cl_live/' + myName).set({
                 name: myName, role, lat: pos.coords.latitude, lng: pos.coords.longitude, 
-                speed, vehicle: role === 'driver' ? document.getElementById('vehicle').value : 'user',
-                lastSeen: Date.now() // <--- ANTI-GHOST TIMESTAMP
+                speed: Math.min(speed, 90), vehicle: role === 'driver' ? 'jeep' : 'user',
+                dest: (role === 'driver') ? dest : null,
+                ts: Date.now()
             });
-        }, null, { enableHighAccuracy: true });
+        }, null, { enableHighAccuracy: true, maximumAge: 0 });
 
         db.ref('cl_live').on('value', (snap) => {
             const data = snap.val();
             const now = Date.now();
-            
-            // CLEANING LOGIC: Remove users inactive for > 15 seconds
             for (let id in markers) {
-                if (!data || !data[id] || (now - data[id].lastSeen > 15000)) {
+                if (!data || !data[id] || (now - data[id].ts > 15000)) {
                     map.removeLayer(markers[id]);
                     delete markers[id];
                 }
             }
             if (data) Object.values(data).forEach(u => {
-                if (now - u.lastSeen < 15000) updateMarker(u);
+                if (now - u.ts < 15000) syncMarker(u);
             });
         });
     }
 
-    function updateMarker(u) {
-        const isDriver = u.role === 'driver';
-        const bubbleClass = isDriver ? 'driver-bubble' : 'passenger-bubble';
-        const iconImg = icons[u.vehicle] || icons.user;
-        const html = `<div class="bubble-container ${bubbleClass}"><div class="map-speed-tag">${u.speed} km/h</div><div class="bubble-main"><img src="${iconImg}" class="bubble-img"></div><div class="bubble-arrow"></div></div>`;
+    function syncMarker(u) {
+        const isD = u.role === 'driver';
+        const html = `
+            <div class="bubble-container ${isD ? 'driver-bubble' : 'passenger-bubble'}">
+                <div class="map-speed-tag">${u.speed} km/h</div>
+                <div class="bubble-main"><img src="${u.role === 'driver' ? imgMap.jeep : imgMap.user}" class="bubble-img"></div>
+                <div class="bubble-arrow"></div>
+            </div>`;
 
         if (!markers[u.name]) {
-            markers[u.name] = L.marker([u.lat, u.lng], { icon: L.divIcon({ className: '', html, iconSize: [70, 95], iconAnchor: [35, 95] }) }).addTo(map);
+            markers[u.name] = L.marker([u.lat, u.lng], { 
+                icon: L.divIcon({ className: '', html, iconSize: [70, 95], iconAnchor: [35, 95] }) 
+            }).addTo(map);
         } else {
             markers[u.name].setLatLng([u.lat, u.lng]);
             markers[u.name].setIcon(L.divIcon({ className: '', html, iconSize: [70, 95], iconAnchor: [35, 95] }));
         }
-        if (u.name === myName) { map.panTo([u.lat, u.lng]); document.getElementById('display-name').innerText = u.name; }
+
+        if (u.name === myName) {
+            map.panTo([u.lat, u.lng]);
+            document.getElementById('live-speed').innerText = u.speed;
+            if (u.dest && destCoords[u.dest]) {
+                const distKm = map.distance([u.lat, u.lng], destCoords[u.dest]) / 1000;
+                document.getElementById('live-eta').innerText = Math.max(1, Math.round((distKm / 25) * 60));
+            }
+        }
     }
 
+    // --- THE FIXED DISCONNECT LOGIC ---
     function stopSharing() {
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-        if (myName) db.ref('cl_live/' + myName).remove();
+        // 1. Kill the GPS
+        if (watchId !== null) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+        }
+
+        // 2. Remove from Firebase
+        if (myName) {
+            db.ref('cl_live/' + myName).remove().then(() => {
+                console.log("Database cleared.");
+            });
+        }
+
+        // 3. Stop listening for other users
         db.ref('cl_live').off();
-        for (let id in markers) map.removeLayer(markers[id]);
+
+        // 4. Clear the map
+        for (let id in markers) {
+            map.removeLayer(markers[id]);
+        }
         markers = {};
+
+        // 5. Swap UI back
         document.getElementById('setup-ui').style.display = 'block';
         document.getElementById('info-display').style.display = 'none';
+        
+        alert("Disconnected Successfully.");
     }
 </script>
 </body>
