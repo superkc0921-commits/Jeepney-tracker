@@ -3,104 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>2D Tracker - 3D Vehicles</title>
+    <title>CL Live - Speed & ETA</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
-    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        /* Keeping your requested UI style */
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: -apple-system, sans-serif; margin: 0; background: #000; color: white; overflow: hidden; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: #f0f2f5; overflow: hidden; }
+        #map { height: 60vh; width: 100%; background: #ddd; z-index: 1; }
+
+        .app-container { padding: 15px; max-width: 500px; margin: auto; position: relative; z-index: 100; }
+        .card { 
+            background: white; padding: 20px; border-radius: 25px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15); margin-top: -50px; position: relative;
+        }
+
+        .role-selector { display: flex; gap: 8px; margin-bottom: 15px; background: #eee; padding: 5px; border-radius: 15px; }
+        .role-btn { flex: 1; padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: 700; background: transparent; color: #666; }
+        .role-btn.active { background: #007aff; color: white; box-shadow: 0 4px 10px rgba(0,122,255,0.3); }
+
+        input, select { width: 100%; padding: 14px; border: 1px solid #eee; border-radius: 12px; background: #fafafa; font-size: 15px; margin-bottom: 12px; }
+
+        .action-btn { 
+            width: 100%; padding: 18px; border: none; border-radius: 15px; 
+            color: white; font-weight: 800; font-size: 16px; cursor: pointer;
+            background: linear-gradient(135deg, #007aff, #005bb5);
+        }
+
+        /* Bubble Markers */
+        .bubble-container { width: 60px; height: 70px; position: relative; display: flex; flex-direction: column; align-items: center; }
+        .bubble-main { 
+            width: 50px; height: 50px; border-radius: 50%; border: 4px solid #fff; 
+            background: white; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .bubble-arrow { width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 10px solid #fff; margin-top: -2px; }
+        .driver-bubble .bubble-main { border-color: #30d158; } 
+        .passenger-bubble .bubble-main { border-color: #ff3b30; } 
+        .bubble-img { width: 85%; height: 85%; object-fit: contain; }
+
+        #info-display { display: none; text-align: center; }
         
-        #map { height: 100vh; width: 100vw; position: absolute; top: 0; }
-
-        .ui-container {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            width: 92%; max-width: 400px; z-index: 10;
-        }
+        /* Stats Styling */
+        .stats-row { display: flex; justify-content: space-between; margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
+        .stat-box { flex: 1; }
+        .stat-label { font-size: 10px; color: #8e8e93; text-transform: uppercase; font-weight: bold; display: block; }
+        .stat-value { font-size: 24px; font-weight: 800; color: #007aff; }
+        .stat-unit { font-size: 12px; color: #007aff; margin-left: 2px; }
         
-        .glass-card { 
-            background: rgba(28, 28, 30, 0.85); backdrop-filter: saturate(180%) blur(20px);
-            padding: 20px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-        }
-
-        .role-box { display: flex; gap: 6px; margin-bottom: 15px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 12px; }
-        .tab { flex: 1; padding: 10px; border: none; border-radius: 9px; cursor: pointer; font-weight: 600; background: transparent; color: #8e8e93; font-size: 13px; }
-        .tab.active { background: #007aff; color: white; }
-
-        input, select { 
-            width: 100%; padding: 14px; border: none; border-radius: 12px; 
-            background: rgba(255,255,255,0.05); color: white; margin-bottom: 10px; font-size: 16px;
-        }
-
-        .main-btn { 
-            width: 100%; padding: 16px; border: none; border-radius: 14px; 
-            color: white; font-weight: 700; font-size: 16px; cursor: pointer;
-            background: #007aff; margin-bottom: 8px;
-        }
-
-        .sos-btn {
-            width: 100%; padding: 12px; background: rgba(255, 59, 48, 0.2); border: 1px solid rgba(255, 59, 48, 0.5);
-            border-radius: 12px; color: #ff3b30; font-weight: 700; cursor: pointer; font-size: 13px;
-        }
-
-        #info-panel { display: none; }
-        .eta { font-size: 32px; font-weight: 800; color: #007aff; margin: 2px 0; letter-spacing: -1px; }
-        .badge { display: inline-block; padding: 4px 10px; background: rgba(0, 122, 255, 0.15); color: #007aff; border-radius: 6px; font-size: 10px; font-weight: bold; margin-bottom: 6px; }
-        
-        /* 3D-Look Vehicle Icons */
-        .marker-icon {
-            width: 60px; height: 60px; background-size: contain; background-repeat: no-repeat;
-            filter: drop-shadow(0 8px 4px rgba(0,0,0,0.4)); /* Adds 3D depth shadow */
-            transition: transform 0.3s ease;
-        }
+        .dest-label { font-size: 12px; color: #ff3b30; font-weight: bold; background: #fff1f0; padding: 4px 12px; border-radius: 20px; display: inline-block; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 
-<div class="ui-container">
-    <div class="glass-card">
-        <div id="setup-panel">
-            <div class="role-box">
-                <button class="tab active" onclick="setRole('driver')">DRIVER</button>
-                <button class="tab" onclick="setRole('passenger')">PASSENGER</button>
+<div class="app-container">
+    <div class="card">
+        <div id="setup-ui">
+            <div class="role-selector">
+                <button id="btn-driver" class="role-btn active" onclick="setRole('driver')">DRIVER</button>
+                <button id="btn-passenger" class="role-btn" onclick="setRole('passenger')">PASSENGER</button>
             </div>
-
-            <div id="driver-ui">
-                <input type="text" id="driverName" placeholder="Driver Name">
-                <select id="vehicle">
-                    <option value="tricycle">🛺 Tricycle (3D View)</option>
-                    <option value="jeep">🚍 Modern Jeep</option>
-                    <option value="bus">🚌 Public Bus</option>
+            <div id="driver-form">
+                <input type="text" id="userName" placeholder="Driver Name">
+                <select id="destination">
+                    <option value="" disabled selected>Select Destination</option>
+                    <option value="Apalit">Apalit Public Market</option>
+                    <option value="SanFernando">SM City Pampanga</option>
+                    <option value="Angeles">Marquee Mall (Angeles)</option>
+                    <option value="Malolos">Malolos Capitol</option>
                 </select>
-                <button class="main-btn" onclick="startApp()">START DRIVING</button>
+                <select id="vehicle">
+                    <option value="jeep">🚍 Modern Jeepney</option>
+                    <option value="bus">🚌 Provincial Bus</option>
+                </select>
+                <button class="action-btn" onclick="startSharing()">START TRIP</button>
             </div>
-
-            <div id="passenger-ui" style="display:none;">
-                <p style="font-size: 13px; color: #8e8e93; margin-bottom: 15px;">Locating 3D vehicles near Apalit...</p>
-                <button class="main-btn" onclick="startApp()">TRACK NEARBY</button>
+            <div id="passenger-form" style="display:none;">
+                <input type="text" id="passName" placeholder="Your Name">
+                <button class="action-btn" onclick="startSharing()">TRACK NEARBY RIDES</button>
             </div>
-            <button class="sos-btn" onclick="alert('SOS SENT TO AUTHORITIES')">EMERGENCY SOS</button>
         </div>
 
-        <div id="info-panel">
-            <div class="badge">LIVE TRACKING</div>
-            <div id="display-name" style="font-weight: 700; font-size: 18px;">---</div>
-            <div id="display-type" style="font-size: 11px; color: #8e8e93;">VEHICLE</div>
-            <div class="eta" id="display-eta">-- MIN</div>
-            <button class="sos-btn" style="margin-top:10px;" onclick="alert('SOS SENT!')">REPORT ACCIDENT / SOS</button>
+        <div id="info-display">
+            <div id="dest-display" class="dest-label">HEADING TO: --</div>
+            <h3 id="display-name" style="margin:0; font-size: 20px;">---</h3>
+            
+            <div class="stats-row">
+                <div class="stat-box">
+                    <span class="stat-label">Current Speed</span>
+                    <span id="display-speed" class="stat-value">0</span><span class="stat-unit">km/h</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Estimated Arrival</span>
+                    <span id="display-eta" class="stat-value">--</span><span class="stat-unit">mins</span>
+                </div>
+            </div>
+            
+            <button class="action-btn" style="background:#f2f2f7; color:#3a3a3c; font-size:12px; padding:10px; margin-top:15px;" onclick="stopSharing()">END TRIP</button>
         </div>
     </div>
 </div>
 
 <script>
-    // --- FIREBASE ---
     const firebaseConfig = {
         apiKey: "AIzaSyDAF957yq7BpNDOzQJpCqDkL-fhgBMywiY",
         databaseURL: "https://jeepney-tracker-33edd-default-rtdb.firebaseio.com",
@@ -110,72 +119,99 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // --- MAPBOX ---
-    // !!! MUST PASTE YOUR PK.XXX TOKEN HERE !!!
-    mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
+    const destinations = { 
+        "Apalit": [14.9455, 120.7570], "SanFernando": [15.0514, 120.6974], 
+        "Angeles": [15.1450, 120.6156], "Malolos": [14.8510, 120.8161] 
+    };
 
-    const map = new mapboxgl.Map({
-        container: 'map',
-        style: 'mapbox://styles/mapbox/dark-v11', // Clean 2D Dark Map
-        center: [120.7570, 14.9455],
-        zoom: 15,
-        pitch: 0, // 0 = 2D FLAT VIEW
-        bearing: 0
-    });
+    const icons = { 
+        jeep: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png', 
+        bus: 'https://cdn-icons-png.flaticon.com/512/1039/1039845.png', 
+        user: 'https://icon-library.com/images/user-icon-for-web/user-icon-for-web-2.jpg' 
+    };
+
+    var map = L.map('map', { zoomControl: false }).setView([14.9455, 120.7570], 12);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png').addTo(map);
 
     let role = 'driver';
-    let el = document.createElement('div');
-    el.className = 'marker-icon';
-    let marker = new mapboxgl.Marker(el);
-
-    // Using Isometric (3D perspective) icons for a 2D map
-    const vehicleIcons = {
-        tricycle: 'https://cdn-icons-png.flaticon.com/512/2898/2898516.png',
-        jeep: 'https://cdn-icons-png.flaticon.com/512/3448/3448339.png',
-        bus: 'https://cdn-icons-png.flaticon.com/512/1039/1039845.png'
-    };
+    let markers = {};
+    let watchId = null;
+    let myName = "";
 
     function setRole(r) {
         role = r;
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        event.target.classList.add('active');
-        document.getElementById('driver-ui').style.display = r === 'driver' ? 'block' : 'none';
-        document.getElementById('passenger-ui').style.display = r === 'passenger' ? 'block' : 'none';
+        document.getElementById('btn-driver').classList.toggle('active', r === 'driver');
+        document.getElementById('btn-passenger').classList.toggle('active', r === 'passenger');
+        document.getElementById('driver-form').style.display = r === 'driver' ? 'block' : 'none';
+        document.getElementById('passenger-form').style.display = r === 'passenger' ? 'block' : 'none';
     }
 
-    function startApp() {
-        document.getElementById('setup-panel').style.display = 'none';
-        document.getElementById('info-panel').style.display = 'block';
+    function startSharing() {
+        myName = document.getElementById(role === 'driver' ? 'userName' : 'passName').value || "User_" + Math.floor(Math.random()*999);
+        document.getElementById('setup-ui').style.display = 'none';
+        document.getElementById('info-display').style.display = 'block';
+        setTimeout(() => map.invalidateSize(), 200);
 
-        if (role === 'driver') {
-            const name = document.getElementById('driverName').value || "Express";
+        watchId = navigator.geolocation.watchPosition((pos) => {
+            const { latitude, longitude, speed } = pos.coords;
+            const kmh = speed ? Math.round(speed * 3.6) : 0;
+            const destKey = document.getElementById('destination').value;
             const vType = document.getElementById('vehicle').value;
-            
-            navigator.geolocation.watchPosition((pos) => {
-                const { latitude, longitude, heading } = pos.coords;
-                db.ref('shared_location/v1').set({ name, type: vType, lat: latitude, lng: longitude, heading: heading || 0 });
-                updateMap(name, vType, latitude, longitude, heading);
-            }, null, { enableHighAccuracy: true });
-        } else {
-            db.ref('shared_location/v1').on('value', (snap) => {
-                const data = snap.val();
-                if (data) updateMap(data.name, data.type, data.lat, data.lng, data.heading);
+
+            db.ref('cl_live/' + myName).set({
+                name: myName, role, lat: latitude, lng: longitude, speed: kmh, 
+                vehicle: role === 'driver' ? vType : 'user',
+                dest: (role === 'driver' && destKey) ? destKey : null
             });
+        }, (err) => console.error(err), { enableHighAccuracy: true });
+
+        db.ref('cl_live').on('value', (snap) => {
+            const data = snap.val();
+            for (let id in markers) { if (!data || !data[id]) { map.removeLayer(markers[id]); delete markers[id]; } }
+            for (let id in data) updateMarker(data[id]);
+        });
+    }
+
+    function updateMarker(u) {
+        const bubbleClass = u.role === 'driver' ? 'driver-bubble' : 'passenger-bubble';
+        const iconImg = icons[u.vehicle] || icons.user;
+        const html = `<div class="bubble-container ${bubbleClass}"><div class="bubble-main"><img src="${iconImg}" class="bubble-img"></div><div class="bubble-arrow"></div></div>`;
+
+        if (!markers[u.name]) {
+            markers[u.name] = L.marker([u.lat, u.lng], {
+                icon: L.divIcon({ className: '', html, iconSize: [60, 70], iconAnchor: [30, 70] })
+            }).addTo(map);
+        } else {
+            markers[u.name].setLatLng([u.lat, u.lng]);
+        }
+
+        if (u.name === myName) {
+            map.panTo([u.lat, u.lng]);
+            document.getElementById('display-name').innerText = u.name;
+            document.getElementById('display-speed').innerText = u.speed;
+            
+            if (u.dest && destinations[u.dest]) {
+                document.getElementById('dest-display').innerText = "HEADING TO: " + u.dest.toUpperCase();
+                const dist = map.distance([u.lat, u.lng], destinations[u.dest]) / 1000; // km
+                // Using 35km/h as average regional transit speed
+                const eta = Math.max(1, Math.round((dist / 35) * 60));
+                document.getElementById('display-eta').innerText = eta;
+            } else {
+                document.getElementById('dest-display').innerText = "TRACKING LIVE";
+                document.getElementById('display-eta').innerText = "--";
+            }
         }
     }
 
-    function updateMap(name, type, lat, lng, heading) {
-        el.style.backgroundImage = `url(${vehicleIcons[type]})`;
-        
-        // Rotating the 3D-looking icon to match driver direction
-        el.style.transform = `rotate(${heading || 0}deg)`;
-        
-        marker.setLngLat([lng, lat]).addTo(map);
-        map.easeTo({ center: [lng, lat], duration: 1000 });
-        
-        document.getElementById('display-name').innerText = name;
-        document.getElementById('display-type').innerText = type.toUpperCase() + " DRIVER";
-        document.getElementById('display-eta').innerText = "4 MIN";
+    function stopSharing() {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        if (myName) db.ref('cl_live/' + myName).remove();
+        db.ref('cl_live').off();
+        for (let id in markers) { map.removeLayer(markers[id]); }
+        markers = {};
+        document.getElementById('setup-ui').style.display = 'block';
+        document.getElementById('info-display').style.display = 'none';
+        myName = "";
     }
 </script>
 </body>
